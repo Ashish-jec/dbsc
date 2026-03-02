@@ -1,0 +1,42 @@
+server:
+  port: 8080
+  # Access log: every request is logged (method, URI, status, duration). File: logs/access_log.YYYY-MM-DD.log
+  tomcat:
+    accesslog:
+      enabled: true
+      pattern: "%t %m %U%q %s %Dms %{User-Agent}i"
+      suffix: ".log"
+      prefix: access_log
+      directory: logs
+      rotate: true
+
+# DBSC configuration
+dbsc:
+  # Cookie name that is bound to the device-bound session
+  credential-cookie-name: dbsc_session
+  # Cookie attributes (RFC 6265bis style). Omit Secure for localhost (HTTP); add "Secure" for production HTTPS.
+  credential-cookie-attributes: "Path=/; HttpOnly; SameSite=Lax"
+  # Challenge validity in seconds (short lifetime per spec)
+  challenge-ttl-seconds: 300
+  # Max number of recent challenges to keep per session (for race conditions)
+  max-challenges-per-session: 5
+  # Session cookie max age in seconds (use 30 so stolen cookie dies in browser after 30s)
+  session-cookie-max-age: 30
+  # Server-side session TTL in seconds. Session invalid after this unless client refreshes (proves key). Stolen cookie useless after this.
+  server-session-ttl-seconds: 30
+
+spring:
+  application:
+    name: cursordbsc
+
+# Logging: app and access-style request logs to console; adjust level (DEBUG/INFO/WARN) as needed
+logging:
+  level:
+    root: INFO
+    com.example.dbsc: INFO
+    ACCESS: INFO
+    org.springframework.web: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/application.log

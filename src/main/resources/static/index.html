@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DBSC API Test</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #18181c;
+      --border: #2a2a30;
+      --text: #e4e4e7;
+      --muted: #71717a;
+      --accent: #a78bfa;
+      --success: #34d399;
+      --error: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 2rem;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--accent);
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-bottom: 2rem;
+    }
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    section h2 {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin: 0 0 0.75rem 0;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    button {
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font: inherit;
+      font-size: 0.875rem;
+      cursor: pointer;
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    button:hover { filter: brightness(1.1); }
+    button:active { filter: brightness(0.95); }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    button.secondary {
+      background: var(--border);
+      color: var(--text);
+    }
+    pre, .log {
+      background: #0c0c0e;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      font-size: 0.8125rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: 0.5rem 0 0 0;
+    }
+    .log { max-height: 12rem; overflow-y: auto; }
+    .status { font-size: 0.875rem; margin-top: 0.5rem; }
+    .status.ok { color: var(--success); }
+    .status.err { color: var(--error); }
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .flow-num {
+      width: 1.5rem;
+      height: 1.5rem;
+      background: var(--border);
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>DBSC API Test</h1>
+  <p class="subtitle">Device Bound Session Credentials — test registration, refresh, and protected API</p>
+
+  <section>
+    <h2>1. Start session</h2>
+    <p class="flow"><span class="flow-num">1</span> GET /dbsc/session/start → read <code>Secure-Session-Registration</code> (challenge + path)</p>
+    <button type="button" id="btn-start">Start session</button>
+    <div id="start-status" class="status"></div>
+    <pre id="start-log" class="log" style="display:none;"></pre>
+  </section>
+
+  <section>
+    <h2>2. Register (DBSC proof)</h2>
+    <p class="flow"><span class="flow-num">2</span> Generate ES256 key, sign JWT (jti = challenge), POST to registration with <code>Secure-Session-Response</code></p>
+    <button type="button" id="btn-register">Register</button>
+    <div id="register-status" class="status"></div>
+    <pre id="register-log" class="log" style="display:none;"></pre>
+  </section>
+
+  <section>
+    <h2>3. Call protected API</h2>
+    <p class="flow"><span class="flow-num">3</span> GET /api/secure with session cookie. Cookie expires in 30s; if you get 401, the page will auto-refresh (only works here — this device has the key) and retry.</p>
+    <button type="button" id="btn-api">Call /api/secure</button>
+    <div id="api-status" class="status"></div>
+    <pre id="api-log" class="log" style="display:none;"></pre>
+  </section>
+
+  <section>
+    <h2>Debug</h2>
+    <p>After registering, click to see what the server receives (same cookies as other requests).</p>
+    <button type="button" id="btn-debug" class="secondary">What does server see?</button>
+    <div id="debug-status" class="status"></div>
+    <pre id="debug-log" class="log" style="display:none;"></pre>
+  </section>
+
+  <section>
+    <h2>4. Refresh (optional)</h2>
+    <p class="flow"><span class="flow-num">4</span> POST /dbsc/refresh with <code>X-Dbsc-Session-Id</code> + <code>Secure-Session-Response</code> (signed with cached challenge). <em>Note: JS cannot set Sec-Secure-Session-Id; server accepts X-Dbsc-Session-Id for this demo.</em></p>
+    <button type="button" id="btn-refresh">Refresh session</button>
+    <div id="refresh-status" class="status"></div>
+    <pre id="refresh-log" class="log" style="display:none;"></pre>
+  </section>
+
+  <script type="module">
+    const base = window.location.origin;
+
+    function show(el, text, isError = false) {
+      el.textContent = text;
+      el.className = 'status ' + (isError ? 'err' : 'ok');
+      el.style.display = 'block';
+    }
+    function showLog(el, obj) {
+      el.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+      el.style.display = 'block';
+    }
+
+    let state = {
+      challenge: null,
+      registerPath: '/dbsc/register',
+      sessionId: null,
+      nextChallenge: null,
+      keyPair: null,
+      privateKeyJwk: null
+    };
+
+    function parseRegistrationHeader(header) {
+      if (!header) return null;
+      const pathMatch = header.match(/path="([^"]+)"/);
+      const challengeMatch = header.match(/challenge="([^"]+)"/);
+      return {
+        path: pathMatch ? pathMatch[1] : '/dbsc/register',
+        challenge: challengeMatch ? challengeMatch[1] : null
+      };
+    }
+
+    function parseChallengeHeader(header) {
+      if (!header) return null;
+      const idMatch = header.match(/id="([^"]*)"/);
+      const first = header.trim();
+      const q1 = first.indexOf('"');
+      const q2 = first.indexOf('"', q1 + 1);
+      const challenge = (q1 >= 0 && q2 > q1) ? first.slice(q1 + 1, q2) : null;
+      return { challenge, sessionId: idMatch ? idMatch[1] : null };
+    }
+
+    // Step 1: Start session
+    document.getElementById('btn-start').addEventListener('click', async () => {
+      const statusEl = document.getElementById('start-status');
+      const logEl = document.getElementById('start-log');
+      try {
+        const r = await fetch(base + '/dbsc/session/start', { credentials: 'include' });
+        const regHeader = r.headers.get('Secure-Session-Registration');
+        const parsed = parseRegistrationHeader(regHeader);
+        if (!parsed || !parsed.challenge) {
+          show(statusEl, 'Missing or invalid Secure-Session-Registration header', true);
+          showLog(logEl, { raw: regHeader, parsed });
+          return;
+        }
+        state.challenge = parsed.challenge;
+        state.registerPath = parsed.path.startsWith('http') ? parsed.path : base + (parsed.path.startsWith('/') ? parsed.path : '/' + parsed.path);
+        state.sessionId = null;
+        state.nextChallenge = null;
+        show(statusEl, 'Challenge received. You can now Register.');
+        showLog(logEl, { challenge: state.challenge, registerPath: state.registerPath });
+      } catch (e) {
+        show(statusEl, 'Request failed: ' + e.message, true);
+        showLog(logEl, e.message);
+      }
+    });
+
+    // Step 2: Register (build DBSC proof JWT and POST)
+    document.getElementById('btn-register').addEventListener('click', async () => {
+      const statusEl = document.getElementById('register-status');
+      const logEl = document.getElementById('register-log');
+      if (!state.challenge) {
+        show(statusEl, 'Start session first.', true);
+        return;
+      }
+      try {
+        const { SignJWT, generateKeyPair, exportJWK } = await import('https://cdn.jsdelivr.net/npm/jose@5/+esm');
+        const { publicKey, privateKey } = await generateKeyPair('ES256', { crv: 'P-256', curve: 'P-256' });
+        state.keyPair = { publicKey, privateKey };
+        const publicJwk = await exportJWK(publicKey);
+
+        const jwt = await new SignJWT({})
+          .setProtectedHeader({ alg: 'ES256', typ: 'dbsc+jwt', jwk: publicJwk })
+          .setJti(state.challenge)
+          .setIssuedAt()
+          .sign(privateKey);
+
+        const registerUrl = state.registerPath.startsWith('http') ? state.registerPath : base + state.registerPath;
+        const res = await fetch(registerUrl, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Secure-Session-Response': jwt
+          }
+        });
+
+        const body = await res.json().catch(() => ({}));
+        const challengeHeader = res.headers.get('Secure-Session-Challenge');
+        const challengeParsed = parseChallengeHeader(challengeHeader);
+        if (challengeParsed && challengeParsed.sessionId) {
+          state.sessionId = challengeParsed.sessionId;
+          state.nextChallenge = challengeParsed.challenge;
+        }
+        if (body.session_identifier) state.sessionId = body.session_identifier;
+
+        if (!res.ok) {
+          show(statusEl, 'Registration failed: ' + res.status, true);
+          showLog(logEl, { status: res.status, body });
+          return;
+        }
+        show(statusEl, 'Session registered. Cookie set. You can call the protected API.');
+        showLog(logEl, { sessionId: state.sessionId, nextChallenge: state.nextChallenge ? '(cached)' : '-', body });
+      } catch (e) {
+        show(statusEl, 'Error: ' + e.message, true);
+        showLog(logEl, e.stack || e.message);
+      }
+    });
+
+    // Helper: run refresh (sign JWT, POST /dbsc/refresh). Returns true if refresh succeeded.
+    async function doRefresh() {
+      if (!state.sessionId || !state.nextChallenge || !state.keyPair) return false;
+      const { SignJWT } = await import('https://cdn.jsdelivr.net/npm/jose@5/+esm');
+      const jwt = await new SignJWT({})
+        .setProtectedHeader({ alg: 'ES256', typ: 'dbsc+jwt' })
+        .setJti(state.nextChallenge)
+        .setIssuedAt()
+        .sign(state.keyPair.privateKey);
+      const res = await fetch(base + '/dbsc/refresh', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Dbsc-Session-Id': state.sessionId,
+          'Secure-Session-Response': jwt
+        }
+      });
+      const challengeHeader = res.headers.get('Secure-Session-Challenge');
+      const parsed = parseChallengeHeader(challengeHeader);
+      if (parsed?.challenge) state.nextChallenge = parsed.challenge;
+      return res.ok;
+    }
+
+    // Step 3: Call protected API (auto-refresh on 401/403 when cookie expired and we have the key, then retry)
+    document.getElementById('btn-api').addEventListener('click', async () => {
+      const statusEl = document.getElementById('api-status');
+      const logEl = document.getElementById('api-log');
+      try {
+        let r = await fetch(base + '/api/secure', { credentials: 'include' });
+        let autoRefreshed = false;
+        const needsAuth = !r.ok && (r.status === 401 || r.status === 403);
+        if (needsAuth && state.keyPair && state.sessionId && state.nextChallenge) {
+          autoRefreshed = await doRefresh();
+          if (autoRefreshed) r = await fetch(base + '/api/secure', { credentials: 'include' });
+        }
+        const data = await r.json().catch(() => ({}));
+        if (r.ok) {
+          show(statusEl, 'Protected API returned 200.' + (autoRefreshed ? ' (Cookie had expired; new cookie obtained via refresh.)' : ''));
+          showLog(logEl, data);
+        } else {
+          show(statusEl, 'API returned ' + r.status + '. ' + (needsAuth ? 'Cookie expired — only this device can refresh (or register again).' : ''), true);
+          showLog(logEl, data);
+        }
+      } catch (e) {
+        show(statusEl, 'Request failed: ' + e.message, true);
+        showLog(logEl, e.message);
+      }
+    });
+
+    // Debug
+    document.getElementById('btn-debug').addEventListener('click', async () => {
+      const statusEl = document.getElementById('debug-status');
+      const logEl = document.getElementById('debug-log');
+      try {
+        const r = await fetch(base + '/dbsc/debug', { credentials: 'include' });
+        const data = await r.json().catch(() => ({}));
+        showLog(logEl, data);
+        if (data.dbscCookieSent && data.sessionFound) {
+          show(statusEl, 'Cookie is sent and session found — /api/secure should work.');
+        } else if (data.dbscCookieSent && !data.sessionFound) {
+          show(statusEl, 'Cookie is sent but session not in store (restart cleared store?). Register again.', true);
+        } else {
+          show(statusEl, 'Cookie not sent. Use same origin (e.g. open this page at ' + base + ').', true);
+        }
+      } catch (e) {
+        show(statusEl, 'Error: ' + e.message, true);
+        showLog(logEl, e.message);
+      }
+    });
+
+    // Step 4: Refresh
+    document.getElementById('btn-refresh').addEventListener('click', async () => {
+      const statusEl = document.getElementById('refresh-status');
+      const logEl = document.getElementById('refresh-log');
+      if (!state.sessionId || !state.nextChallenge || !state.keyPair) {
+        show(statusEl, 'Register first so we have session id and cached challenge.', true);
+        return;
+      }
+      try {
+        const { SignJWT } = await import('https://cdn.jsdelivr.net/npm/jose@5/+esm');
+        const jwt = await new SignJWT({})
+          .setProtectedHeader({ alg: 'ES256', typ: 'dbsc+jwt' })
+          .setJti(state.nextChallenge)
+          .setIssuedAt()
+          .sign(state.keyPair.privateKey);
+
+        const res = await fetch(base + '/dbsc/refresh', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Dbsc-Session-Id': state.sessionId,
+            'Secure-Session-Response': jwt
+          }
+        });
+
+        const body = await res.json().catch(() => ({}));
+        const challengeHeader = res.headers.get('Secure-Session-Challenge');
+        const challengeParsed = parseChallengeHeader(challengeHeader);
+        if (challengeParsed && challengeParsed.challenge) state.nextChallenge = challengeParsed.challenge;
+
+        if (!res.ok) {
+          show(statusEl, 'Refresh failed: ' + res.status + ' (may get new challenge in header)', true);
+          showLog(logEl, { status: res.status, body, newChallengeCached: !!challengeParsed?.challenge });
+          return;
+        }
+        show(statusEl, 'Session refreshed. New cookie set.');
+        showLog(logEl, { sessionId: state.sessionId, body });
+      } catch (e) {
+        show(statusEl, 'Error: ' + e.message, true);
+        showLog(logEl, e.stack || e.message);
+      }
+    });
+  </script>
+</body>
+</html>
