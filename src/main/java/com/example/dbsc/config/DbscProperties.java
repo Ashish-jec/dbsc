@@ -21,6 +21,10 @@ public class DbscProperties {
     private List<String> relyingOrigins = new ArrayList<>();
     private String providerOrigin;
     private List<String> allowedRefreshInitiators = new ArrayList<>();
+    /** CORS allowed origins for DBSC endpoints. If empty, defaults to localhost. Set in cloud to your app origin (e.g. https://myapp.example.com). */
+    private List<String> corsAllowedOrigins = new ArrayList<>();
+    /** Single CORS origin (e.g. from env DBSC_CORS_ALLOW_ORIGIN). Useful when tunnel URL changes (e.g. cloudflared). */
+    private String corsAllowOrigin;
 
     public String getCredentialCookieName() {
         return credentialCookieName;
@@ -100,5 +104,21 @@ public class DbscProperties {
 
     public void setAllowedRefreshInitiators(List<String> allowedRefreshInitiators) {
         this.allowedRefreshInitiators = allowedRefreshInitiators;
+    }
+
+    public List<String> getCorsAllowedOrigins() {
+        return corsAllowedOrigins;
+    }
+
+    public void setCorsAllowedOrigins(List<String> corsAllowedOrigins) {
+        this.corsAllowedOrigins = corsAllowedOrigins;
+    }
+
+    public String getCorsAllowOrigin() {
+        return corsAllowOrigin;
+    }
+
+    public void setCorsAllowOrigin(String corsAllowOrigin) {
+        this.corsAllowOrigin = corsAllowOrigin;
     }
 }

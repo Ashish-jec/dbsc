@@ -12,6 +12,13 @@ server:
 
 # DBSC configuration
 dbsc:
+  # CORS: allow this origin so POST /dbsc/register works (browser sends it on preflight). Origin = URL in the browser when you open the app.
+  # - Cloudflared/tunnels: use the tunnel URL (e.g. https://abc-xyz.trycloudflare.com). Set via env so you don't edit yaml when URL changes:
+  #     export DBSC_CORS_ALLOW_ORIGIN=https://your-tunnel-url.trycloudflare.com
+  # - Or set here: cors-allow-origin: https://your-tunnel-url.trycloudflare.com
+  # - Or list: cors-allowed-origins: [ "https://myapp.example.com" ]
+  cors-allow-origin: https://end-threats-local-envelope.trycloudflare.com/
+  # cors-allowed-origins:
   # Cookie name that is bound to the device-bound session
   credential-cookie-name: dbsc_session
   # Cookie attributes (RFC 6265bis style). Omit Secure for localhost (HTTP); add "Secure" for production HTTPS.

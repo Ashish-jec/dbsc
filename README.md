@@ -16,11 +16,30 @@ DBSC allows a server to verify that a session credential has not been exported f
 | **Well-known** | § 11.6 | `/.well-known/device-bound-sessions` for `registering_origins`, `relying_origins`, or `provider_origin` |
 | **Protected API** | — | `/api/**` requires a valid DBSC session (bound cookie present and session in store) |
 
-### Spec adherence and browser limitations
+### Who generates the key pair? Where is the private key stored?
 
-The **server** follows the [W3C DBSC spec](https://w3c.github.io/webappsec-dbsc/) for registration, refresh, headers, and JSON session instructions. Browsers **do not implement DBSC yet** (no built-in session store, no automatic refresh, no TPM-backed keys). The test page is a **JavaScript simulation** of what a future DBSC-enabled browser would do.
+- **Key pair:** The **client (browser)** generates it—never the server. The server only ever receives and stores the **public key** (inside the JWT header at registration) and uses it to verify signatures. The **private key never leaves the device**.
+- **In this project’s test page:** The key pair is created in **JavaScript** on the test page when you click “Register”, using the [jose](https://github.com/panva/jose) library and the Web Crypto API (`generateKeyPair('ES256')`). So it’s “the browser” in the sense of client-side code, but it’s **page script**, not a built-in browser DBSC API.
+- **Where the private key is stored (test page):** Only in **JavaScript memory**—in the page’s `state.keyPair.privateKey` (a `CryptoKey`). It is **not** written to disk, TPM, or any persistent store. If you refresh the page or close the tab, the key is gone and you must “Start session” and “Register” again. That’s why this is a **simulation**: a real DBSC implementation would store the key in secure, device-bound storage (e.g. TPM) managed by the browser.
 
-Because the Fetch API **forbids** setting request headers whose names start with `Sec-` (see [MDN](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Basic_concepts)), the test page **cannot** send `Sec-Secure-Session-Id` from JavaScript. The refresh endpoint therefore also accepts **`X-Dbsc-Session-Id`** with the same value when that header is present (for the demo only). Real DBSC user agents would send `Sec-Secure-Session-Id`.
+### Spec adherence and browser behaviour (incl. Chrome 145)
+
+The **server** follows the [W3C DBSC spec](https://w3c.github.io/webappsec-dbsc/) for registration, refresh, headers, and JSON session instructions.
+
+**Chrome and DBSC:** Chrome is experimenting with DBSC via **origin trials** (e.g. from Chrome 135+, with a second trial in 2025–2026). In a build with DBSC enabled for your origin, Chrome would:
+
+- Generate and store the key pair itself (e.g. TPM-backed on supported devices).
+- Set `Sec-Secure-Session-Id` and related headers automatically.
+- Refresh sessions automatically when the bound cookie is missing or expired.
+
+**This project’s test page does not use Chrome’s native DBSC.** It uses a **JavaScript simulation** (Web Crypto + jose) so that:
+
+- It works in **any** browser and version (no origin trial or flag).
+- You can run and test the server and flows without enrolling in Chrome’s trial.
+
+So even on Chrome 145, the test page is still using the JS simulation unless you explicitly use an origin that is enrolled in Chrome’s DBSC trial and Chrome is using its native DBSC path for that origin.
+
+Because the Fetch API **forbids** setting request headers whose names start with `Sec-` (see [MDN](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Basic_concepts)), the test page **cannot** send `Sec-Secure-Session-Id` from JavaScript. The refresh endpoint therefore also accepts **`X-Dbsc-Session-Id`** for the demo. Real DBSC user agents (e.g. Chrome with native DBSC) would send `Sec-Secure-Session-Id`.
 
 ## Endpoints
 
