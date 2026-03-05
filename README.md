@@ -32,19 +32,33 @@ The **server** follows the [W3C DBSC spec](https://w3c.github.io/webappsec-dbsc/
 - Set `Sec-Secure-Session-Id` and related headers automatically.
 - Refresh sessions automatically when the bound cookie is missing or expired.
 
-**This project’s test page does not use Chrome’s native DBSC.** It uses a **JavaScript simulation** (Web Crypto + jose) so that:
+**Testing native DBSC on Mac / Windows / Linux (Chrome team guidance):** To have the **browser** respond to `Secure-Session-Registration` (so you can test the native flow without our JS simulation), enable:
 
-- It works in **any** browser and version (no origin trial or flag).
-- You can run and test the server and flows without enrolling in Chrome’s trial.
+- **`chrome://flags#enable-bound-session-credentials-software-keys-for-manual-testing`**
 
-So even on Chrome 145, the test page is still using the JS simulation unless you explicitly use an origin that is enrolled in Chrome’s DBSC trial and Chrome is using its native DBSC path for that origin.
+With this flag, Chrome will perform registration and refresh using **software-backed keys** (no hardware protection). It is for manual testing only and does not provide the security benefit of TPM/Secure Enclave. **Origin trial enrollment is not required** for this testing (per Chrome team). For **production**: today only **Windows devices with a TPM** get hardware-protected keys; **Mac** support (Secure Enclave) is expected to follow within a few months.
+
+**This project’s test page does not use Chrome’s native DBSC by default.** It uses a **JavaScript simulation** (Web Crypto + jose) so that:
+
+- It works in **any** browser and version (no flag required).
+- You can run and test the server and flows everywhere.
+
+With the software-keys flag enabled, Chrome may use its **native** DBSC path (browser handles registration/refresh and sets `Sec-Secure-Session-Id`). If so, the browser will respond to `Secure-Session-Registration` automatically; you may not need to click “Register” on our test page.
 
 Because the Fetch API **forbids** setting request headers whose names start with `Sec-` (see [MDN](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Basic_concepts)), the test page **cannot** send `Sec-Secure-Session-Id` from JavaScript. The refresh endpoint therefore also accepts **`X-Dbsc-Session-Id`** for the demo. Real DBSC user agents (e.g. Chrome with native DBSC) would send `Sec-Secure-Session-Id`.
+
+**Why do I still see `X-Dbsc-Session-Id` after enabling the Chrome flag?** Chrome only sets `Sec-Secure-Session-Id` for sessions **it** registered. If you clicked “Register” on the test page, our JavaScript did the registration (key in page memory), so the session is “JS‑owned.” Refresh is then done by our script, which sends `X-Dbsc-Session-Id`. To try **native** behavior and see `Sec-Secure-Session-Id` on refresh:
+
+1. **Do not click “Register”.** The server sends `Secure-Session-Registration` and a long-lived cookie on the **main document** (GET `/` or `/index.html`) so Chrome sees a “post-login” style response (as in Chrome’s integration guide).
+2. Clear site data (cookies) for localhost, then reload **http://localhost:8080/** with the software-keys flag enabled.
+3. In DevTools → Network, watch for an **automatic** `POST` to `/dbsc/register` from the browser. If Chrome sends it, the session is Chrome‑owned and refresh should show `Sec-Secure-Session-Id`.
+4. **If you still don’t see the automatic POST:** Chrome’s automatic registration may not be triggered on all builds or platforms (e.g. Mac with software keys only). The server and JS flow are correct; you can keep using the “Register” button to test the API, or ask the Chrome team for the exact conditions under which the browser triggers registration. The JS simulation remains a reliable way to test the DBSC server.
 
 ## Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/`, `/index.html` | Test page; response includes `Secure-Session-Registration` so Chrome can auto-register on load |
 | GET | `/dbsc/session/start` | Start DBSC flow: response includes `Secure-Session-Registration` with challenge |
 | POST | `/dbsc/register` | Register device-bound session (body not used; `Secure-Session-Response` and optional `Sec-Secure-Session-Id` in headers) |
 | POST | `/dbsc/refresh` | Refresh session (headers: `Sec-Secure-Session-Id` or `X-Dbsc-Session-Id`, `Secure-Session-Response`) |
