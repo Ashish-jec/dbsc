@@ -20,7 +20,7 @@ dbsc:
   cors-allowed-origins:
     - https://end-threats-local-envelope.trycloudflare.com/
     - https://foundations-noted-hdtv-debut.trycloudflare.com/
-    - https://dbsc-production.up.railway.app/index.html
+    - https://dbsc-production.up.railway.app
   # cors-allowed-origins:
   # Cookie name that is bound to the device-bound session
   credential-cookie-name: dbsc_session
