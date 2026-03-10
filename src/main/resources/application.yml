@@ -22,8 +22,8 @@ dbsc:
     - https://foundations-noted-hdtv-debut.trycloudflare.com/
     - https://dbsc-production.up.railway.app
   # cors-allowed-origins:
-  # Session scope origin: used in JSON session instructions (scope.origin) and refresh_url. Must be same-site as the client (HTTPS when client is on HTTPS). If unset, server uses Origin header or X-Forwarded-Proto.
-  # scope-origin: https://your-app.trycloudflare.com
+  # Session scope origin: used in JSON session instructions (scope.origin) and refresh_url. Must be HTTPS and same-site as the client (Chrome DBSC requires secure context). If unset, server uses Origin header, X-Forwarded-Proto, or first HTTPS entry from cors-allowed-origins when behind a proxy.
+  scope-origin: https://dbsc-production.up.railway.app
   # Cookie name that is bound to the device-bound session
   credential-cookie-name: dbsc_session
   # Cookie attributes (RFC 6265bis style). Omit Secure for localhost (HTTP); add "Secure" for production HTTPS.

@@ -18,8 +18,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.net.URI;
-import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -80,7 +79,8 @@ public class DbscRegistrationController {
             return ResponseEntity.badRequest().build();
         }
 
-        String origin = EffectiveScopeOriginResolver.resolve(request, properties.getScopeOrigin());
+        List<String> corsOrigins = buildCorsOriginsList();
+        String origin = EffectiveScopeOriginResolver.resolve(request, properties.getScopeOrigin(), corsOrigins);
         DbscSession session = sessionService.createSession(proof.publicKey(), proof.algorithm(), origin);
         log.info("Registration: created session sessionId={} origin={}", session.getSessionId(), origin);
 
@@ -117,6 +117,14 @@ public class DbscRegistrationController {
             value = value.substring(1, value.length() - 1);
         }
         return value;
+    }
+
+    private List<String> buildCorsOriginsList() {
+        List<String> out = new ArrayList<>();
+        if (properties.getCorsAllowedOrigins() != null) out.addAll(properties.getCorsAllowedOrigins());
+        String single = properties.getCorsAllowOrigin();
+        if (single != null && !single.isBlank() && !out.contains(single)) out.add(single);
+        return out;
     }
 
     private String buildSessionCookie(HttpServletRequest request, String sessionId, boolean withMaxAge) {

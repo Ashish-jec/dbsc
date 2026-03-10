@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -104,7 +105,8 @@ public class DbscRefreshController {
         String cookieHeader = buildSessionCookie(request, session.getSessionId(), true);
         response.addHeader("Set-Cookie", cookieHeader);
 
-        String origin = EffectiveScopeOriginResolver.resolve(request, properties.getScopeOrigin());
+        List<String> corsOrigins = buildCorsOriginsList();
+        String origin = EffectiveScopeOriginResolver.resolve(request, properties.getScopeOrigin(), corsOrigins);
         String refreshUrl = origin + "/dbsc/refresh";
         List<String> allowedInitiators = properties.getAllowedRefreshInitiators() != null
                 ? properties.getAllowedRefreshInitiators()
@@ -130,6 +132,14 @@ public class DbscRefreshController {
             value = value.substring(1, value.length() - 1);
         }
         return value;
+    }
+
+    private List<String> buildCorsOriginsList() {
+        List<String> out = new ArrayList<>();
+        if (properties.getCorsAllowedOrigins() != null) out.addAll(properties.getCorsAllowedOrigins());
+        String single = properties.getCorsAllowOrigin();
+        if (single != null && !single.isBlank() && !out.contains(single)) out.add(single);
+        return out;
     }
 
     private String buildSessionCookie(HttpServletRequest request, String sessionId, boolean withMaxAge) {
