@@ -104,8 +104,8 @@ public class DbscRefreshController {
         String cookieHeader = buildSessionCookie(request, session.getSessionId(), true);
         response.addHeader("Set-Cookie", cookieHeader);
 
-        String origin = originFromRequest(request);
-        String refreshUrl = baseUrl(request) + "/dbsc/refresh";
+        String origin = EffectiveScopeOriginResolver.resolve(request, properties.getScopeOrigin());
+        String refreshUrl = origin + "/dbsc/refresh";
         List<String> allowedInitiators = properties.getAllowedRefreshInitiators() != null
                 ? properties.getAllowedRefreshInitiators()
                 : List.of();
@@ -130,20 +130,6 @@ public class DbscRefreshController {
             value = value.substring(1, value.length() - 1);
         }
         return value;
-    }
-
-    private String originFromRequest(HttpServletRequest request) {
-        String scheme = request.getScheme();
-        String host = request.getServerName();
-        int port = request.getServerPort();
-        if ("https".equals(scheme) && port == 443 || "http".equals(scheme) && port == 80) {
-            return scheme + "://" + host;
-        }
-        return scheme + "://" + host + ":" + port;
-    }
-
-    private String baseUrl(HttpServletRequest request) {
-        return originFromRequest(request);
     }
 
     private String buildSessionCookie(HttpServletRequest request, String sessionId, boolean withMaxAge) {

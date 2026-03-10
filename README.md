@@ -95,6 +95,8 @@ dbsc:
   challenge-ttl-seconds: 300
   max-challenges-per-session: 5
   session-cookie-max-age: 86400
+  # Session scope origin (scope.origin and refresh_url base). Use HTTPS when client is on HTTPS so Chrome DBSC sees same-site. If unset, server uses Origin header or X-Forwarded-Proto.
+  # scope-origin: https://your-app.example.com
   # Optional: for well-known and session instructions
   registering-origins: []   # e.g. ["https://subdomain.example.com"]
   relying-origins: []       # e.g. ["https://example.co.uk"]

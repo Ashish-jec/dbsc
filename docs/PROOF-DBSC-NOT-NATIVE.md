@@ -85,3 +85,53 @@ We are running Chrome 145 with the software-keys flag enabled. Our server and te
 - **Steps:** Open the app in Chrome with **`enable-bound-session-credentials-software-keys-for-manual-testing`** enabled (origin trial not required). Open DevTools → Network, run "Start session" then "Register", and inspect the `POST /dbsc/register` (and any `POST /dbsc/refresh`) request headers. If native DBSC is active, the browser will set `Sec-Secure-Session-Id`; if not, you’ll see our JS fallback (e.g. `X-Dbsc-Session-Id`).
 
 Our README and code comments explicitly describe the current flow as a **simulation** and the use of `X-Dbsc-Session-Id` because the browser does not set `Sec-Secure-Session-Id` for our origin.
+
+---
+
+## 6. Why we never see `Sec-Secure-Session-Id` (even on Windows with the flag)
+
+**`Sec-Secure-Session-Id` only appears when Chrome “owns” the session.** Chrome sets that header on requests (including refresh) only for sessions that **Chrome** registered—i.e. after Chrome itself sent the automatic `POST` to the registration endpoint and stored the key. If Chrome never sends that automatic POST, then:
+
+- The only way to get a session is our page’s “Register” button (JavaScript).
+- That session is “JS‑owned”; refresh is done by our script.
+- Our script cannot set `Sec-*` headers, so it sends `X-Dbsc-Session-Id`.
+
+So **no automatic POST → no Chrome-owned session → every refresh is done by our JS → we always see `X-Dbsc-Session-Id`.** The Chrome team’s “you should see Sec-Secure-Session-Id” assumes Chrome has already performed registration; we never get to that state because the automatic registration step never runs.
+
+---
+
+## 7. Question for the Chrome team (copy-paste)
+
+You can send something like this to the Chrome team (or open an issue at [WICG/dbsc](https://github.com/WICG/dbsc/issues)):
+
+---
+
+**Subject:** Automatic POST to registration endpoint not triggered; when should we see Sec-Secure-Session-Id?
+
+We have a DBSC-capable server and test page (W3C spec, Chrome integration guide). We’re trying to see native Chrome DBSC (automatic registration and `Sec-Secure-Session-Id` on refresh) as described by the Chrome team.
+
+**Environment:**
+- Chrome 145 (stable), Windows.
+- Flag enabled: `#enable-bound-session-credentials-software-keys-for-manual-testing`.
+- Origin: `http://localhost:8080` (also tried on Mac; same result).
+
+**What we do:**
+1. Clear cookies for the origin.
+2. Load `http://localhost:8080/` (no click on any button).
+3. Watch DevTools → Network.
+
+**Server response for GET `/`:**
+- `Secure-Session-Registration: (ES256);path="/dbsc/register";challenge="<base64url>"`
+- `Set-Cookie: dbsc_session=pending; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax`
+
+So the response matches the “post-login” pattern (long-lived cookie + registration header) from the integration guide.
+
+**What we see:**
+- No automatic `POST` to `/dbsc/register` from the browser. The only way we get a session is by clicking our page’s “Register” button (JavaScript), which sends the POST.
+- On refresh, requests have `X-Dbsc-Session-Id` (our fallback), not `Sec-Secure-Session-Id`.
+
+**Question:** Under what exact conditions does Chrome trigger the automatic registration (POST to the path in `Secure-Session-Registration`)? We’d like to test native DBSC and see `Sec-Secure-Session-Id` on refresh. Is there an additional flag, origin-trial token, or specific response shape required for Chrome 145 to trigger on localhost?
+
+(Our repo is available if you need to reproduce; we can share the URL.)
+
+---

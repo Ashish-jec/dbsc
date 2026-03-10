@@ -25,6 +25,8 @@ public class DbscProperties {
     private List<String> corsAllowedOrigins = new ArrayList<>();
     /** Single CORS origin (e.g. from env DBSC_CORS_ALLOW_ORIGIN). Useful when tunnel URL changes (e.g. cloudflared). */
     private String corsAllowOrigin;
+    /** Optional. When set, used as session scope origin and base for refresh_url. Use HTTPS so DBSC scope matches secure context (e.g. https://your-app.trycloudflare.com). */
+    private String scopeOrigin;
 
     public String getCredentialCookieName() {
         return credentialCookieName;
@@ -120,5 +122,13 @@ public class DbscProperties {
 
     public void setCorsAllowOrigin(String corsAllowOrigin) {
         this.corsAllowOrigin = corsAllowOrigin;
+    }
+
+    public String getScopeOrigin() {
+        return scopeOrigin;
+    }
+
+    public void setScopeOrigin(String scopeOrigin) {
+        this.scopeOrigin = scopeOrigin;
     }
 }

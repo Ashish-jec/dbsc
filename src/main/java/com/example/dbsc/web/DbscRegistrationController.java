@@ -80,7 +80,7 @@ public class DbscRegistrationController {
             return ResponseEntity.badRequest().build();
         }
 
-        String origin = originFromRequest(request);
+        String origin = EffectiveScopeOriginResolver.resolve(request, properties.getScopeOrigin());
         DbscSession session = sessionService.createSession(proof.publicKey(), proof.algorithm(), origin);
         log.info("Registration: created session sessionId={} origin={}", session.getSessionId(), origin);
 
@@ -88,7 +88,7 @@ public class DbscRegistrationController {
         String nextChallenge = challengeService.issueChallenge(session.getSessionId());
         response.setHeader("Secure-Session-Challenge", "\"" + nextChallenge + "\";id=\"" + session.getSessionId() + "\"");
 
-        String refreshUrl = baseUrl(request) + "/dbsc/refresh";
+        String refreshUrl = origin + "/dbsc/refresh";
         List<String> allowedInitiators = properties.getAllowedRefreshInitiators() != null
                 ? properties.getAllowedRefreshInitiators()
                 : List.of();
@@ -117,20 +117,6 @@ public class DbscRegistrationController {
             value = value.substring(1, value.length() - 1);
         }
         return value;
-    }
-
-    private String originFromRequest(HttpServletRequest request) {
-        String scheme = request.getScheme();
-        String host = request.getServerName();
-        int port = request.getServerPort();
-        if ("https".equals(scheme) && port == 443 || "http".equals(scheme) && port == 80) {
-            return scheme + "://" + host;
-        }
-        return scheme + "://" + host + ":" + port;
-    }
-
-    private String baseUrl(HttpServletRequest request) {
-        return originFromRequest(request);
     }
 
     private String buildSessionCookie(HttpServletRequest request, String sessionId, boolean withMaxAge) {
